@@ -1,5 +1,5 @@
 std_ports
-readonly ipt_connbytes="-m connbytes --connbytes-dir=original --connbytes-mode=packets --connbytes"
+readonly ipt_connbytes=""
 
 ipt()
 {
@@ -326,11 +326,11 @@ produce_reverse_nfqws_rule()
 	if contains "$rule" "$ipt_connbytes"; then
 		# autohostlist - need several incoming packets
 		# autottl - need only one incoming packet
-		[ "$MODE_FILTER" = autohostlist ] || rule=$(echo "$rule" | sed -re "s/$ipt_connbytes [0-9]+:[0-9]+/$ipt_connbytes 1:1/")
+		[ "$MODE_FILTER" = autohostlist ] || rule=$(echo "$rule" | sed -re "s/$ipt_connbytes [0-9]+:[0-9]+/$ipt_connbytes/")
 	else
 		local n=1
 		[ "$MODE_FILTER" = autohostlist ] && n=$(first_packets_for_mode)
-		rule="$ipt_connbytes 1:$n $rule"
+		rule="$ipt_connbytes $rule"
 	fi
 	echo "$rule" | reverse_nfqws_rule_stream
 }
@@ -358,7 +358,7 @@ zapret_do_firewall_rules_ipt()
 {
 	local mode="${MODE_OVERRIDE:-$MODE}"
 
-	local first_packet_only="$ipt_connbytes 1:$(first_packets_for_mode)"
+	# local first_packet_only="$ipt_connbytes 1:$(first_packets_for_mode)"
 	local desync="-m mark ! --mark $DESYNC_MARK/$DESYNC_MARK"
 	local n f4 f6 qn qns qn6 qns6
 
@@ -373,26 +373,25 @@ zapret_do_firewall_rules_ipt()
 				fw_tpws $1 "$f4" "$f6" $TPPORT
 			fi
 			;;
-	
+
 		nfqws)
 			# quite complex but we need to minimize nfqws processes to save RAM
 			get_nfqws_qnums qn qns qn6 qns6
 			if [ "$MODE_HTTP_KEEPALIVE" != "1" ] && [ -n "$qn" ] && [ "$qn" = "$qns" ]; then
 				filter_apply_port_target f4
-				f4="$f4 $first_packet_only"
 				filter_apply_ipset_target4 f4
 				fw_nfqws_post4 $1 "$f4 $desync" $qn
 				fw_reverse_nfqws_rule4 $1 "$f4" $qn
 			else
 				if [ -n "$qn" ]; then
 					f4="-p tcp -m multiport --dports $HTTP_PORTS_IPT"
-					[ "$MODE_HTTP_KEEPALIVE" = "1" ] || f4="$f4 $first_packet_only"
+					[ "$MODE_HTTP_KEEPALIVE" = "1" ] || f4="$f4"
 					filter_apply_ipset_target4 f4
 					fw_nfqws_post4 $1 "$f4 $desync" $qn
 					fw_reverse_nfqws_rule4 $1 "$f4" $qn
 				fi
 				if [ -n "$qns" ]; then
-					f4="-p tcp -m multiport --dports $HTTPS_PORTS_IPT $first_packet_only"
+					f4="-p tcp -m multiport --dports $HTTPS_PORTS_IPT"
 					filter_apply_ipset_target4 f4
 					fw_nfqws_post4 $1 "$f4 $desync" $qns
 					fw_reverse_nfqws_rule4 $1 "$f4" $qns
@@ -400,20 +399,20 @@ zapret_do_firewall_rules_ipt()
 			fi
 			if [ "$MODE_HTTP_KEEPALIVE" != "1" ] && [ -n "$qn6" ] && [ "$qn6" = "$qns6" ]; then
 				filter_apply_port_target f6
-				f6="$f6 $first_packet_only"
+				f6="$f6"
 				filter_apply_ipset_target6 f6
 				fw_nfqws_post6 $1 "$f6 $desync" $qn6
 				fw_reverse_nfqws_rule6 $1 "$f6" $qn6
 			else
 				if [ -n "$qn6" ]; then
 					f6="-p tcp -m multiport --dports $HTTP_PORTS_IPT"
-					[ "$MODE_HTTP_KEEPALIVE" = "1" ] || f6="$f6 $first_packet_only"
+					[ "$MODE_HTTP_KEEPALIVE" = "1" ] || f6="$f6"
 					filter_apply_ipset_target6 f6
 					fw_nfqws_post6 $1 "$f6 $desync" $qn6
 					fw_reverse_nfqws_rule6 $1 "$f6" $qn6
 				fi
 				if [ -n "$qns6" ]; then
-					f6="-p tcp -m multiport --dports $HTTPS_PORTS_IPT $first_packet_only"
+					f6="-p tcp -m multiport --dports $HTTPS_PORTS_IPT"
 					filter_apply_ipset_target6 f6
 					fw_nfqws_post6 $1 "$f6 $desync" $qns6
 					fw_reverse_nfqws_rule6 $1 "$f6" $qns6
@@ -424,14 +423,12 @@ zapret_do_firewall_rules_ipt()
 			if [ -n "$qn" ]; then
 				f4=
 				filter_apply_port_target_quic f4
-				f4="$f4 $first_packet_only"
 				filter_apply_ipset_target4 f4
 				fw_nfqws_post4 $1 "$f4 $desync" $qn
 			fi
 			if [ -n "$qn6" ]; then
 				f6=
 				filter_apply_port_target_quic f6
-				f6="$f6 $first_packet_only"
 				filter_apply_ipset_target6 f6
 				fw_nfqws_post6 $1 "$f6 $desync" $qn6
 			fi
